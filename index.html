@@ -1,0 +1,21 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="theme-color" content="#101824" />
+    <meta name="color-scheme" content="dark" />
+    <title>Кто ты из учеников Академии?</title>
+  </head>
+  <body>
+    <div id="root"></div>
+    <script>
+      // Source-mode convenience: when index.html is opened directly from disk,
+      // redirect to the standalone preview that does not require Vite/npm.
+      if (window.location.protocol === 'file:') {
+        window.location.replace('./standalone/index.html');
+      }
+    </script>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
+</html>
