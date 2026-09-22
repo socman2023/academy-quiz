@@ -1,8 +1,8 @@
-import raw from '../src/data/quiz-data.json';
+import { quizData } from '../src/data';
 import { createEngine, getInitialAdaptiveNeed, resolveAdaptive } from '../src/engine/scoring';
 import type { AdaptiveAnswer, QuizData } from '../src/types';
 
-const data = raw as unknown as QuizData;
+const data = quizData as unknown as QuizData;
 const engine = createEngine(data);
 
 function greedyAnswers(targetId: string): number[] {
@@ -13,7 +13,6 @@ function greedyAnswers(targetId: string): number[] {
     let bestD = Infinity;
     for (let ai = 0; ai < data.questions[qi].answers.length; ai += 1) {
       const trial = [...answers, ai];
-      // fill remaining questions with first option for a stable rough search
       while (trial.length < data.questions.length) trial.push(0);
       const { ranking } = getInitialAdaptiveNeed(engine, trial);
       const rank = ranking.findIndex((x) => x.id === targetId);
