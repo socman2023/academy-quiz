@@ -10,7 +10,7 @@ void initVK();
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
-    <ConfigProvider appearance="dark">
+    <ConfigProvider>
       <AdaptivityProvider>
         <AppRoot>
           <App />
