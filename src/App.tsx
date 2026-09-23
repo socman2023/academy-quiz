@@ -198,7 +198,7 @@ export default function App() {
 
   if (state.phase === 'adaptive' && state.currentTbId) {
     const q = quizData.tiebreakers.find((x) => x.id === state.currentTbId);
-    if (!q) throw new Error(\`Unknown tiebreaker \${state.currentTbId}\`);
+    if (!q) throw new Error(`Unknown tiebreaker ${state.currentTbId}`);
     const progress = state.adaptive.length === 0 ? 0.95 : 0.985;
     return (
       <QuizView
@@ -221,7 +221,7 @@ export default function App() {
       question={q.text}
       answers={q.answers}
       progress={progress}
-      counterLabel={\`\${index + 1}/\${quizData.questions.length}\`}
+      counterLabel={`${index + 1}/${quizData.questions.length}`}
       canBack
       onAnswer={answerBase}
       onBack={goBack}

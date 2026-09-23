@@ -37,7 +37,7 @@ export function ResultView({ profile, status, onShareStory, onShareWall, onInvit
     <main className="screen screen--result">
       <section className="result-shell">
         <div className="result-portrait-wrap">
-          <img className="result-portrait" src={profile.asset} alt={\`Портрет: \${profile.name}\`} />
+          <img className="result-portrait" src={profile.asset} alt={`Портрет: ${profile.name}`} />
           <div className="result-portrait-shade" />
           <div className="result-badge">Твой результат</div>
         </div>

@@ -34,7 +34,7 @@ function appLink(): string {
 }
 
 function buildWallMessage(name: string, link: string): string {
-  return \`Я — \${name}. Узнай и ты, кто ты из учеников Академии. \${link}\`;
+  return `Я — ${name}. Узнай и ты, кто ты из учеников Академии. ${link}`;
 }
 
 async function browserShare(title: string, text: string, url: string): Promise<'shared' | 'copied'> {
@@ -91,8 +91,8 @@ export async function shareResult(name: string, storyAsset: string, wallAsset: s
 
   const text = mode === 'story'
     ? 'Кто ты из учеников Академии? Пройди испытание.'
-    : \`Я — \${name}. Узнай и ты, кто ты из учеников Академии.\`;
-  return browserShare(\`Я — \${name}\`, text, link);
+    : `Я — ${name}. Узнай и ты, кто ты из учеников Академии.`;
+  return browserShare(`Я — ${name}`, text, link);
 }
 
 export async function inviteFriend(): Promise<'shared' | 'copied'> {
