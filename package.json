@@ -8,7 +8,8 @@
     "build": "tsc -b && vite build",
     "preview": "vite preview",
     "deploy": "vk-miniapps-deploy",
-    "test:engine": "tsx scripts/engine-smoke.ts"
+    "test:engine": "tsx scripts/engine-smoke.ts",
+    "audit:distribution": "tsx scripts/distribution-audit.ts"
   },
   "dependencies": {
     "@vkontakte/vk-bridge": "^3.0.2",

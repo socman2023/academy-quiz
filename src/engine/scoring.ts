@@ -8,6 +8,13 @@ import type {
   TieBreaker,
   UserProfile,
 } from '../types';
+import {
+  BASE_TIE_GAP,
+  CHARACTER_CALIBRATION,
+  MUSIC_SOFT_PENALTY,
+  POST_TIE_GAP,
+  TIEBREAKER_WEIGHT,
+} from './calibration';
 
 const EPS = 1e-9;
 
@@ -18,6 +25,11 @@ interface PreparedAnswer extends AnswerOption {
 interface PreparedQuestion extends Omit<Question, 'answers'> {
   dims: DimCode[];
   answers: PreparedAnswer[];
+}
+
+interface DividerChoice {
+  tb: TieBreaker;
+  score: number;
 }
 
 export interface EngineContext {
@@ -115,12 +127,18 @@ export function computeBaseProfile(engine: EngineContext, baseAnswers: number[])
 
 function signaturePenalty(charId: string, baseAnswers?: number[]): number {
   if (charId !== 'iliodor' && charId !== 'evstatiy') return 0;
-  // These are specialist musician results. The music elective makes them
-  // eligible; it does not select either one by itself.
-  return baseAnswers?.[10] === 0 ? 0 : 10;
+  // Within the CURRENT 25-result set these two results are strongly tied to
+  // explicit musical interest. This is a soft signal, not a claim that they
+  // are the only musical students in the Academy (Keivan is musical too).
+  return baseAnswers?.[10] === 0 ? 0 : MUSIC_SOFT_PENALTY;
 }
 
-export function distance(engine: EngineContext, profile: UserProfile, charId: string, baseAnswers?: number[]): number {
+export function distance(
+  engine: EngineContext,
+  profile: UserProfile,
+  charId: string,
+  baseAnswers?: number[],
+): number {
   const { data, allDims } = engine;
   const p = data.profiles[charId].vector;
   let num = 0;
@@ -134,10 +152,17 @@ export function distance(engine: EngineContext, profile: UserProfile, charId: st
     den += w * c;
   }
   const base = den > 0 ? Math.sqrt(num / den) : 1;
-  return base + signaturePenalty(charId, baseAnswers);
+  return base
+    + (CHARACTER_CALIBRATION[charId] ?? 0)
+    + signaturePenalty(charId, baseAnswers);
 }
 
-export function rankAll(engine: EngineContext, profile: UserProfile, ids?: string[], baseAnswers?: number[]): RankedCharacter[] {
+export function rankAll(
+  engine: EngineContext,
+  profile: UserProfile,
+  ids?: string[],
+  baseAnswers?: number[],
+): RankedCharacter[] {
   const pool = ids ?? engine.data.profileOrder;
   return pool
     .map((id) => ({ id, d: distance(engine, profile, id, baseAnswers) }))
@@ -150,32 +175,68 @@ function tieBreakerById(data: QuizData, id: string): TieBreaker {
   return tb;
 }
 
-function chooseSpecificDivider(
-  data: QuizData,
-  ranking: RankedCharacter[],
-  used: string[],
-): { tb: TieBreaker; overlap: string[] } | null {
-  const best = ranking[0]?.d;
-  if (best === undefined) return null;
-  const close = ranking
-    .filter((x) => x.d - best < 0.04 + EPS)
-    .slice(0, 4)
-    .map((x) => x.id);
+function dividerAppliesToPair(tb: TieBreaker, a: string, b: string): boolean {
+  return tb.targets.includes('*') || (tb.targets.includes(a) && tb.targets.includes(b));
+}
 
-  const candidates = data.tiebreakers
-    .filter((tb) => tb.id !== 'G' && !used.includes(tb.id))
-    .map((tb) => {
-      const overlap = close.filter((id) => tb.targets.includes(id));
-      const containsBest = tb.targets.includes(ranking[0].id);
-      const containsSecond = ranking[1] ? tb.targets.includes(ranking[1].id) : false;
-      if (!containsBest || overlap.length < 2) return null;
-      const score = overlap.length * 100 + (containsSecond ? 20 : 0) - tb.targets.length;
-      return { tb, score, overlap };
-    })
-    .filter((x): x is { tb: TieBreaker; score: number; overlap: string[] } => Boolean(x))
-    .sort((a, b) => b.score - a.score || a.tb.id.localeCompare(b.tb.id));
+function applyTieBreakerAnswer(
+  engine: EngineContext,
+  profile: UserProfile,
+  tb: TieBreaker,
+  answer: number,
+): UserProfile {
+  const code = tb.answers[answer]?.code ?? {};
+  const U = { ...profile.U };
+  const C = { ...profile.C };
 
-  return candidates[0] ? { tb: candidates[0].tb, overlap: candidates[0].overlap } : null;
+  for (const [d, v] of Object.entries(code)) {
+    const baseCount = engine.data.mainDims.includes(d) ? 3 : 1;
+    const target = Math.max(1, Math.min(5, 3 + v));
+    U[d] = (
+      baseCount * (U[d] ?? 3)
+      + TIEBREAKER_WEIGHT * target
+    ) / (baseCount + TIEBREAKER_WEIGHT);
+    C[d] = 1;
+  }
+
+  return { U, C, E: { ...profile.E } };
+}
+
+function chooseEffectiveDivider(
+  engine: EngineContext,
+  profile: UserProfile,
+  baseAnswers: number[],
+  pair: [string, string],
+  used: Set<string>,
+): DividerChoice | null {
+  const [a, b] = pair;
+  let best: DividerChoice | null = null;
+
+  for (const tb of engine.data.tiebreakers) {
+    if (used.has(tb.id) || !dividerAppliesToPair(tb, a, b)) continue;
+
+    let winsA = 0;
+    let winsB = 0;
+    let spread = 0;
+
+    for (let answer = 0; answer < tb.answers.length; answer += 1) {
+      const adjusted = applyTieBreakerAnswer(engine, profile, tb, answer);
+      const pairRanking = rankAll(engine, adjusted, [a, b], baseAnswers);
+      if (pairRanking[0].id === a) winsA += 1;
+      else winsB += 1;
+      spread += Math.abs(pairRanking[1].d - pairRanking[0].d);
+    }
+
+    // Never ask a question if every possible answer produces the same winner.
+    if (winsA === 0 || winsB === 0) continue;
+
+    // Prefer a question whose answer space is balanced between the two
+    // candidates; use separation strength only as a secondary criterion.
+    const score = Math.min(winsA, winsB) * 100 + spread;
+    if (!best || score > best.score) best = { tb, score };
+  }
+
+  return best;
 }
 
 export function getInitialAdaptiveNeed(
@@ -184,35 +245,37 @@ export function getInitialAdaptiveNeed(
 ): { profile: UserProfile; ranking: RankedCharacter[]; need: AdaptiveNeed | null } {
   const profile = computeBaseProfile(engine, baseAnswers);
   const ranking = rankAll(engine, profile, undefined, baseAnswers);
-  const specific = chooseSpecificDivider(engine.data, ranking, []);
-  if (specific) return { profile, ranking, need: { tbId: specific.tb.id, candidateIds: specific.overlap } };
-  if (ranking[1] && ranking[1].d - ranking[0].d < 0.01 - EPS) {
-    return { profile, ranking, need: { tbId: 'G', candidateIds: [ranking[0].id, ranking[1].id] } };
+
+  if (!ranking[1] || ranking[1].d - ranking[0].d >= BASE_TIE_GAP - EPS) {
+    return { profile, ranking, need: null };
   }
-  return { profile, ranking, need: null };
+
+  const pair: [string, string] = [ranking[0].id, ranking[1].id];
+  const divider = chooseEffectiveDivider(engine, profile, baseAnswers, pair, new Set());
+  if (!divider) return { profile, ranking, need: null };
+
+  return {
+    profile,
+    ranking,
+    need: { tbId: divider.tb.id, candidateIds: pair },
+  };
 }
 
-function locallyAdjustedProfile(
+function applyAdaptiveAnswers(
   engine: EngineContext,
   base: UserProfile,
   adaptiveAnswers: AdaptiveAnswer[],
 ): UserProfile {
-  const U = { ...base.U };
-  const evidence: Record<string, number[]> = {};
+  let current = base;
   for (const item of adaptiveAnswers) {
-    const tb = tieBreakerById(engine.data, item.tbId);
-    const code = tb.answers[item.answer]?.code ?? {};
-    for (const [d, v] of Object.entries(code)) {
-      const T = Math.max(1, Math.min(5, 3 + v));
-      (evidence[d] ||= []).push(T);
-    }
+    current = applyTieBreakerAnswer(
+      engine,
+      current,
+      tieBreakerById(engine.data, item.tbId),
+      item.answer,
+    );
   }
-
-  for (const [d, arr] of Object.entries(evidence)) {
-    const baseCount = engine.data.mainDims.includes(d) ? 3 : 1;
-    U[d] = (baseCount * base.U[d] + arr.reduce((s, x) => s + x, 0)) / (baseCount + arr.length);
-  }
-  return { U, C: { ...base.C }, E: { ...base.E } };
+  return current;
 }
 
 export function resolveAdaptive(
@@ -221,49 +284,50 @@ export function resolveAdaptive(
   candidateIds: string[],
   adaptiveAnswers: AdaptiveAnswer[],
 ): AdaptiveResolution {
+  if (candidateIds.length < 2) {
+    const profile = computeBaseProfile(engine, baseAnswers);
+    const ranking = rankAll(engine, profile, undefined, baseAnswers);
+    return {
+      kind: 'result',
+      candidateIds,
+      winnerId: candidateIds[0] ?? ranking[0].id,
+      secondId: ranking[1]?.id,
+    };
+  }
+
+  const pair: [string, string] = [candidateIds[0], candidateIds[1]];
   const base = computeBaseProfile(engine, baseAnswers);
-  const baseRanking = rankAll(engine, base, undefined, baseAnswers);
-  const local = locallyAdjustedProfile(engine, base, adaptiveAnswers);
-  const localRanking = rankAll(engine, local, candidateIds, baseAnswers);
-  const used = adaptiveAnswers.map((x) => x.tbId);
+  const adjusted = applyAdaptiveAnswers(engine, base, adaptiveAnswers);
+  const pairRanking = rankAll(engine, adjusted, pair, baseAnswers);
 
-  if (adaptiveAnswers.length >= 2) {
-    let winnerId = localRanking[0].id;
-    let secondId = localRanking[1]?.id;
-    if (localRanking[1] && localRanking[1].d - localRanking[0].d < 0.01 - EPS) {
-      const original = baseRanking.filter((x) => candidateIds.includes(x.id));
-      winnerId = original[0].id;
-      secondId = original[1]?.id ?? secondId;
-    }
-    return { kind: 'result', candidateIds, winnerId, secondId };
-  }
-
-  if (!localRanking[1] || localRanking[1].d - localRanking[0].d >= 0.01 - EPS) {
+  if (
+    adaptiveAnswers.length >= 2
+    || !pairRanking[1]
+    || pairRanking[1].d - pairRanking[0].d >= POST_TIE_GAP - EPS
+  ) {
     return {
       kind: 'result',
-      candidateIds,
-      winnerId: localRanking[0].id,
-      secondId: localRanking[1]?.id ?? baseRanking.find((x) => x.id !== localRanking[0].id)?.id,
+      candidateIds: pair,
+      winnerId: pairRanking[0].id,
+      secondId: pairRanking[1]?.id,
     };
   }
 
-  let next = chooseSpecificDivider(engine.data, localRanking, used);
-  if (!next && !used.includes('G')) {
-    next = { tb: tieBreakerById(engine.data, 'G'), overlap: [localRanking[0].id, localRanking[1].id] };
-  }
-  if (!next) {
+  const used = new Set(adaptiveAnswers.map((x) => x.tbId));
+  const divider = chooseEffectiveDivider(engine, adjusted, baseAnswers, pair, used);
+
+  if (!divider) {
     return {
       kind: 'result',
-      candidateIds,
-      winnerId: localRanking[0].id,
-      secondId: localRanking[1]?.id,
+      candidateIds: pair,
+      winnerId: pairRanking[0].id,
+      secondId: pairRanking[1]?.id,
     };
   }
 
-  let nextCandidates = candidateIds;
-  const overlap = candidateIds.filter((id) => next!.tb.targets.includes('*') || next!.tb.targets.includes(id));
-  if (overlap.length >= 2 && overlap.includes(localRanking[0].id) && overlap.includes(localRanking[1].id)) {
-    nextCandidates = overlap;
-  }
-  return { kind: 'question', candidateIds: nextCandidates, tbId: next.tb.id };
+  return {
+    kind: 'question',
+    candidateIds: pair,
+    tbId: divider.tb.id,
+  };
 }
