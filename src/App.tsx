@@ -41,6 +41,10 @@ function loadState(): QuizState {
   }
 }
 
+function wallAssetFromStory(storyAsset: string): string {
+  return storyAsset.replace('/share/', '/share/wall/');
+}
+
 export default function App() {
   const engine = useMemo(() => createEngine(quizData), []);
   const [state, setState] = useState<QuizState>(() => loadState());
@@ -163,12 +167,20 @@ export default function App() {
       <ResultView
         profile={profile}
         status={status}
-        onShare={async () => {
+        onShareStory={async () => {
           try {
-            const result = await shareResult(profile.name, profile.shareAsset);
-            setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Готово!');
+            const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'story');
+            setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации истории открыто.');
           } catch {
-            setStatus('Не удалось открыть окно публикации. Попробуй ещё раз.');
+            setStatus('Не удалось открыть публикацию истории. Попробуй ещё раз.');
+          }
+        }}
+        onShareWall={async () => {
+          try {
+            const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'wall');
+            setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации на странице открыто.');
+          } catch {
+            setStatus('Не удалось открыть публикацию на странице. Попробуй ещё раз.');
           }
         }}
         onInvite={async () => {
@@ -186,7 +198,7 @@ export default function App() {
 
   if (state.phase === 'adaptive' && state.currentTbId) {
     const q = quizData.tiebreakers.find((x) => x.id === state.currentTbId);
-    if (!q) throw new Error(`Unknown tiebreaker ${state.currentTbId}`);
+    if (!q) throw new Error(\`Unknown tiebreaker \${state.currentTbId}\`);
     const progress = state.adaptive.length === 0 ? 0.95 : 0.985;
     return (
       <QuizView
@@ -209,7 +221,7 @@ export default function App() {
       question={q.text}
       answers={q.answers}
       progress={progress}
-      counterLabel={`${index + 1}/${quizData.questions.length}`}
+      counterLabel={\`\${index + 1}/\${quizData.questions.length}\`}
       canBack
       onAnswer={answerBase}
       onBack={goBack}
