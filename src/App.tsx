@@ -181,8 +181,9 @@ export default function App() {
             const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'wall');
             if (result === 'cancelled') setStatus('');
             else setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации на странице открыто.');
-          } catch {
-            setStatus('Не удалось открыть публикацию на странице. Попробуй ещё раз.');
+          } catch (error) {
+            const message = error instanceof Error ? error.message : String(error);
+            setStatus(`Диагностика публикации VK: ${message}`);
           }
         }}
         onInvite={async () => {
