@@ -30,12 +30,20 @@ function absoluteAsset(path: string): string {
 const VK_APP_ID = 54787284;
 const VK_APP_LINK = `https://vk.com/app${VK_APP_ID}`;
 
-function appLink(): string {
-  return VK_APP_LINK;
-}
-
 function isDevelopmentHosting(): boolean {
   return window.location.hostname.startsWith('stage-app');
+}
+
+function appLink(): string {
+  // While the app is unpublished, VK may drop vk.com/app... from share
+  // payloads. The stage-hosting URL is a normal reachable URL and works in dev.
+  if (isDevelopmentHosting()) {
+    const url = new URL(window.location.href);
+    url.hash = '';
+    url.search = '';
+    return url.toString();
+  }
+  return VK_APP_LINK;
 }
 
 function buildWallMessage(name: string, link: string): string {
