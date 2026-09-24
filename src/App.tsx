@@ -170,7 +170,8 @@ export default function App() {
         onShareStory={async () => {
           try {
             const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'story');
-            setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации истории открыто.');
+            if (result === 'cancelled') setStatus('');
+            else setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации истории открыто.');
           } catch {
             setStatus('Не удалось открыть публикацию истории. Попробуй ещё раз.');
           }
