@@ -47,6 +47,15 @@ async function browserShare(title: string, text: string, url: string): Promise<'
   return 'copied';
 }
 
+function bridgeErrorText(error: unknown): string {
+  try {
+    if (error instanceof Error && error.message) return error.message;
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 function isUserDenied(error: unknown): boolean {
   try {
     const text = JSON.stringify(error).toLowerCase();
@@ -119,7 +128,9 @@ export async function shareResult(
     }
   }
 
-  if (mode === 'wall' && await supports('VKWebAppShowWallPostBox')) {
+  if (mode === 'wall') {
+    // Call the documented wall dialog directly. In some VK runtimes
+    // supportsAsync can be misleading, so do not use it as a gate here.
     try {
       await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowWallPostBox', {
         message: buildWallMessage(name, link),
@@ -133,9 +144,9 @@ export async function shareResult(
     } catch (error) {
       if (isUserDenied(error)) return 'cancelled';
 
-      // VK Bridge has a known desktop-web bug with upload_attachments by URL.
-      // Retry the native wall dialog without the image so the user can still
-      // publish the result link instead of silently falling through.
+      // Retry without an uploaded image. If even the basic native wall dialog
+      // is rejected, surface the real Bridge error instead of silently opening
+      // the generic "share to messages" dialog.
       try {
         await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowWallPostBox', {
           message: buildWallMessage(name, link),
@@ -143,7 +154,9 @@ export async function shareResult(
         return 'shared';
       } catch (fallbackError) {
         if (isUserDenied(fallbackError)) return 'cancelled';
-        // fall through to generic share
+        throw new Error(
+          `VK wall: photo=[${bridgeErrorText(error)}]; basic=[${bridgeErrorText(fallbackError)}]`,
+        );
       }
     }
   }
