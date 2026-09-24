@@ -3,7 +3,7 @@ import bridge from '@vkontakte/vk-bridge';
 let bridgeReady = false;
 
 export type ShareMode = 'story' | 'wall';
-export type ShareResult = 'shared' | 'copied' | 'cancelled';
+export type ShareResult = 'shared' | 'copied' | 'cancelled' | 'unavailable';
 
 export async function initVK(): Promise<void> {
   try {
@@ -27,11 +27,15 @@ function absoluteAsset(path: string): string {
   return new URL(path.replace(/^\//, ''), window.location.href).toString();
 }
 
+const VK_APP_ID = 54787284;
+const VK_APP_LINK = `https://vk.com/app${VK_APP_ID}`;
+
 function appLink(): string {
-  const url = new URL(window.location.href);
-  url.hash = '';
-  url.search = '';
-  return url.toString();
+  return VK_APP_LINK;
+}
+
+function isDevelopmentHosting(): boolean {
+  return window.location.hostname.startsWith('stage-app');
 }
 
 function buildWallMessage(name: string, link: string): string {
@@ -45,15 +49,6 @@ async function browserShare(title: string, text: string, url: string): Promise<'
   }
   await navigator.clipboard.writeText(url);
   return 'copied';
-}
-
-function bridgeErrorText(error: unknown): string {
-  try {
-    if (error instanceof Error && error.message) return error.message;
-    return JSON.stringify(error);
-  } catch {
-    return String(error);
-  }
 }
 
 function isUserDenied(error: unknown): boolean {
@@ -129,8 +124,10 @@ export async function shareResult(
   }
 
   if (mode === 'wall') {
-    // Call the documented wall dialog directly. In some VK runtimes
-    // supportsAsync can be misleading, so do not use it as a gate here.
+    // VK currently blocks wall posting for this unpublished development app.
+    // Do not open a misleading generic "share to messages" dialog in dev.
+    if (isDevelopmentHosting()) return 'unavailable';
+
     try {
       await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowWallPostBox', {
         message: buildWallMessage(name, link),
@@ -144,9 +141,8 @@ export async function shareResult(
     } catch (error) {
       if (isUserDenied(error)) return 'cancelled';
 
-      // Retry without an uploaded image. If even the basic native wall dialog
-      // is rejected, surface the real Bridge error instead of silently opening
-      // the generic "share to messages" dialog.
+      // Some VK runtimes reject URL-uploaded photos. Keep one native wall-only
+      // retry, but never fall back to VKWebAppShare (which is a message/share dialog).
       try {
         await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowWallPostBox', {
           message: buildWallMessage(name, link),
@@ -154,9 +150,7 @@ export async function shareResult(
         return 'shared';
       } catch (fallbackError) {
         if (isUserDenied(fallbackError)) return 'cancelled';
-        throw new Error(
-          `VK wall: photo=[${bridgeErrorText(error)}]; basic=[${bridgeErrorText(fallbackError)}]`,
-        );
+        throw fallbackError;
       }
     }
   }
@@ -177,16 +171,8 @@ export async function shareResult(
 }
 
 export async function inviteFriend(): Promise<'shared' | 'copied'> {
-  if (await supports('VKWebAppShowInviteBox')) {
-    try {
-      await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowInviteBox');
-      return 'shared';
-    } catch {
-      // fall through
-    }
-  }
-
   const link = appLink();
+
   if (await supports('VKWebAppShare')) {
     try {
       await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShare', { link });
@@ -195,5 +181,10 @@ export async function inviteFriend(): Promise<'shared' | 'copied'> {
       // fall through
     }
   }
-  return browserShare('Академия ждёт', 'Попробуй пройти испытание и узнать, кто ты из учеников Академии.', link);
+
+  return browserShare(
+    'Академия ждёт',
+    'Попробуй пройти испытание и узнать, кто ты из учеников Академии.',
+    link,
+  );
 }
