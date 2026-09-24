@@ -124,11 +124,27 @@ export async function shareResult(
       await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowWallPostBox', {
         message: buildWallMessage(name, link),
         attachments: link,
-        upload_attachments: [absoluteAsset(wallAsset)],
+        upload_attachments: [{
+          type: 'photo',
+          link: absoluteAsset(wallAsset),
+        }],
       });
       return 'shared';
-    } catch {
-      // fall through
+    } catch (error) {
+      if (isUserDenied(error)) return 'cancelled';
+
+      // VK Bridge has a known desktop-web bug with upload_attachments by URL.
+      // Retry the native wall dialog without the image so the user can still
+      // publish the result link instead of silently falling through.
+      try {
+        await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowWallPostBox', {
+          message: buildWallMessage(name, link),
+        });
+        return 'shared';
+      } catch (fallbackError) {
+        if (isUserDenied(fallbackError)) return 'cancelled';
+        // fall through to generic share
+      }
     }
   }
 
