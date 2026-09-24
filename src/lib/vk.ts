@@ -3,6 +3,7 @@ import bridge from '@vkontakte/vk-bridge';
 let bridgeReady = false;
 
 export type ShareMode = 'story' | 'wall';
+export type ShareResult = 'shared' | 'copied' | 'cancelled';
 
 export async function initVK(): Promise<void> {
   try {
@@ -46,14 +47,62 @@ async function browserShare(title: string, text: string, url: string): Promise<'
   return 'copied';
 }
 
-export async function shareResult(name: string, storyAsset: string, wallAsset: string, mode: ShareMode): Promise<'shared' | 'copied'> {
+function isUserDenied(error: unknown): boolean {
+  try {
+    const text = JSON.stringify(error).toLowerCase();
+    return text.includes('user denied')
+      || text.includes('"error_code":4')
+      || text.includes('cancel');
+  } catch {
+    return false;
+  }
+}
+
+async function imageAssetToJpegDataUrl(path: string): Promise<string> {
+  const response = await fetch(absoluteAsset(path), { cache: 'force-cache' });
+  if (!response.ok) throw new Error(`Unable to load story image: ${response.status}`);
+
+  const sourceBlob = await response.blob();
+  const objectUrl = URL.createObjectURL(sourceBlob);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve(img);
+      img.onerror = () => reject(new Error('Unable to decode story image'));
+      img.src = objectUrl;
+    });
+
+    const canvas = document.createElement('canvas');
+    canvas.width = image.naturalWidth;
+    canvas.height = image.naturalHeight;
+
+    const context = canvas.getContext('2d');
+    if (!context) throw new Error('Canvas is unavailable');
+
+    context.drawImage(image, 0, 0);
+    return canvas.toDataURL('image/jpeg', 0.94);
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
+export async function shareResult(
+  name: string,
+  storyAsset: string,
+  wallAsset: string,
+  mode: ShareMode,
+): Promise<ShareResult> {
   const link = appLink();
 
   if (mode === 'story' && await supports('VKWebAppShowStoryBox')) {
     try {
+      // VK StoryBox explicitly accepts PNG/JPEG base64 blobs. Our cards are
+      // stored as WebP for the app, so convert only the selected card at share time.
+      const blob = await imageAssetToJpegDataUrl(storyAsset);
       await (bridge.send as unknown as (method: string, params?: unknown) => Promise<unknown>)('VKWebAppShowStoryBox', {
         background_type: 'image',
-        url: absoluteAsset(storyAsset),
+        blob,
         locked: true,
         attachment: {
           text: 'open',
@@ -62,8 +111,11 @@ export async function shareResult(name: string, storyAsset: string, wallAsset: s
         },
       });
       return 'shared';
-    } catch {
-      // fall through
+    } catch (error) {
+      // Closing the native editor is a normal user action. Do not open the
+      // generic VK share dialog immediately afterwards.
+      if (isUserDenied(error)) return 'cancelled';
+      throw error;
     }
   }
 
