@@ -179,7 +179,8 @@ export default function App() {
         onShareWall={async () => {
           try {
             const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'wall');
-            setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации на странице открыто.');
+            if (result === 'cancelled') setStatus('');
+            else setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации на странице открыто.');
           } catch {
             setStatus('Не удалось открыть публикацию на странице. Попробуй ещё раз.');
           }
