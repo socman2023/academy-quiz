@@ -176,19 +176,6 @@ export default function App() {
             setStatus('Не удалось открыть публикацию истории. Попробуй ещё раз.');
           }
         }}
-        onShareWall={async () => {
-          try {
-            const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'wall');
-            if (result === 'cancelled') setStatus('');
-            else if (result === 'unavailable') {
-              setStatus('Публикация на странице недоступна, пока приложение работает в режиме разработки. После публикации в VK проверим её ещё раз.');
-            } else {
-              setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации на странице открыто.');
-            }
-          } catch {
-            setStatus('VK не открыл публикацию на странице. Попробуем ещё раз после публикации приложения.');
-          }
-        }}
         onInvite={async () => {
           try {
             const result = await inviteFriend();
