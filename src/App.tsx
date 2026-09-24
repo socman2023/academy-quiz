@@ -180,10 +180,13 @@ export default function App() {
           try {
             const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'wall');
             if (result === 'cancelled') setStatus('');
-            else setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации на странице открыто.');
-          } catch (error) {
-            const message = error instanceof Error ? error.message : String(error);
-            setStatus(`Диагностика публикации VK: ${message}`);
+            else if (result === 'unavailable') {
+              setStatus('Публикация на странице недоступна, пока приложение работает в режиме разработки. После публикации в VK проверим её ещё раз.');
+            } else {
+              setStatus(result === 'copied' ? 'Ссылка на испытание скопирована.' : 'Окно публикации на странице открыто.');
+            }
+          } catch {
+            setStatus('VK не открыл публикацию на странице. Попробуем ещё раз после публикации приложения.');
           }
         }}
         onInvite={async () => {
