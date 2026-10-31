@@ -20,5 +20,9 @@ jobs:
         run: npm run test:engine
       - name: Distribution audit
         run: npm run audit:distribution
-      - name: Production build
+      - name: Public asset check
+        run: npm run test:assets
+      - name: VK production build
         run: npm run build
+      - name: GitHub Pages build
+        run: npm run build:pages
