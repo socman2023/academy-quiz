@@ -31,7 +31,7 @@ button { -webkit-tap-highlight-color: transparent; }
   background-image:
     radial-gradient(circle at 50% 10%, rgba(203,167,92,.10), transparent 36%),
     linear-gradient(rgba(10,17,26,.44), rgba(10,17,26,.67)),
-    url('/assets/academy.webp');
+    var(--academy-bg-image);
   background-position: center, center, center;
   background-size: cover, cover, cover;
   background-repeat: no-repeat, no-repeat, no-repeat;
@@ -41,17 +41,17 @@ button { -webkit-tap-highlight-color: transparent; }
   background-image:
     radial-gradient(circle at 50% 10%, rgba(203,167,92,.08), transparent 38%),
     linear-gradient(rgba(10,17,26,.34), rgba(10,17,26,.59)),
-    url('/assets/academy.webp');
+    var(--academy-bg-image);
 }
 .screen--quiz {
   background-image:
     linear-gradient(rgba(10,17,26,.48), rgba(10,17,26,.70)),
-    url('/assets/academy.webp');
+    var(--academy-bg-image);
 }
 .screen--result {
   background-image:
     linear-gradient(rgba(10,17,26,.56), rgba(10,17,26,.74)),
-    url('/assets/academy.webp');
+    var(--academy-bg-image);
 }
 
 .eyebrow {
