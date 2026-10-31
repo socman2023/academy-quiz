@@ -29,6 +29,8 @@ jobs:
           node-version: 22
       - name: Install
         run: npm install --no-audit --no-fund
+      - name: Validate public assets
+        run: npm run test:assets
       - name: Build for /academy-quiz/
         run: npm run build:pages
       - name: Configure Pages
