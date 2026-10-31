@@ -4,11 +4,12 @@ interface Props {
   profile: CharacterProfile;
   status?: string;
   onShareStory: () => void;
+  inVK: boolean;
   onInvite: () => void;
   onRestart: () => void;
 }
 
-export function ResultView({ profile, status, onShareStory, onInvite, onRestart }: Props) {
+export function ResultView({ profile, status, inVK, onShareStory, onInvite, onRestart }: Props) {
   const c = profile.card;
 
   return (
@@ -50,7 +51,7 @@ export function ResultView({ profile, status, onShareStory, onInvite, onRestart 
           <blockquote className="olesha-quote"><strong>Олешка говорит:</strong><br />{c.quote}</blockquote>
 
           <div className="result-actions">
-            <button className="action action--primary" onClick={onShareStory}>Похвастаться результатом</button>
+            <button className="action action--primary" onClick={onShareStory}>{inVK ? 'Похвастаться результатом' : 'Скачать карточку результата'}</button>
             <button className="action action--secondary" onClick={onInvite}>Позвать друга в Академию</button>
             <button className="action action--ghost" onClick={onRestart}>Испытать судьбу ещё раз</button>
           </div>
