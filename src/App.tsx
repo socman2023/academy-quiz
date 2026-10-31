@@ -5,6 +5,9 @@ import { ResultView } from './components/ResultView';
 import { quizData } from './data';
 import { createEngine, getInitialAdaptiveNeed, resolveAdaptive } from './engine/scoring';
 import { inviteFriend, shareResult } from './lib/vk';
+import { isVKContext } from './lib/environment';
+import { publicAssetUrl } from './lib/assets';
+import { downloadResultCard } from './lib/browser';
 import type { AdaptiveAnswer } from './types';
 
 const STORAGE_KEY = 'academy-quiz-session-v1';
@@ -47,6 +50,7 @@ function wallAssetFromStory(storyAsset: string): string {
 
 export default function App() {
   const engine = useMemo(() => createEngine(quizData), []);
+  const inVK = isVKContext();
   const [state, setState] = useState<QuizState>(() => loadState());
   const [status, setStatus] = useState('');
 
@@ -166,8 +170,14 @@ export default function App() {
     return (
       <ResultView
         profile={profile}
+        inVK={inVK}
         status={status}
         onShareStory={async () => {
+          if (!inVK) {
+            downloadResultCard(profile.shareAsset, profile.id);
+            setStatus('Скачивание карточки результата начато.');
+            return;
+          }
           try {
             const result = await shareResult(profile.name, profile.shareAsset, wallAssetFromStory(profile.shareAsset), 'story');
             if (result === 'cancelled') setStatus('');
