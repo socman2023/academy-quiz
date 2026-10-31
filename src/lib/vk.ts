@@ -1,4 +1,6 @@
 import bridge from '@vkontakte/vk-bridge';
+import { publicAssetUrl } from './assets';
+import { isVKContext } from './environment';
 
 let bridgeReady = false;
 
@@ -24,7 +26,7 @@ async function supports(method: string): Promise<boolean> {
 }
 
 function absoluteAsset(path: string): string {
-  return new URL(path.replace(/^\//, ''), window.location.href).toString();
+  return publicAssetUrl(path);
 }
 
 const VK_APP_ID = 54787284;
@@ -35,6 +37,10 @@ function isDevelopmentHosting(): boolean {
 }
 
 function appLink(): string {
+  // Standalone browser shares its GitHub Pages URL; VK shares the Mini App.
+  if (!isVKContext()) {
+    return new URL(import.meta.env.BASE_URL, window.location.href).toString();
+  }
   // While the app is unpublished, VK may drop vk.com/app... from share
   // payloads. The stage-hosting URL is a normal reachable URL and works in dev.
   if (isDevelopmentHosting()) {
