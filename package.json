@@ -10,7 +10,9 @@
     "predeploy": "npm run build",
     "deploy": "vk-miniapps-deploy",
     "test:engine": "tsx scripts/engine-smoke.ts",
-    "audit:distribution": "tsx scripts/distribution-audit.ts"
+    "audit:distribution": "tsx scripts/distribution-audit.ts",
+    "build:pages": "tsc -b && vite build --base=/academy-quiz/",
+    "test:assets": "tsx scripts/check-assets.ts"
   },
   "dependencies": {
     "@vkontakte/vk-bridge": "^3.0.2",
